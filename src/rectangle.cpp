@@ -1,7 +1,7 @@
-#include "cv.h"
-#include "cxmisc.h"
-#include "highgui.h"
-#include "cvaux.h"
+#include "opencv/cv.h"
+#include "opencv/cxmisc.h"
+#include "opencv/highgui.h"
+#include "opencv/cvaux.h"
 #include <iostream>
 #include <fstream>
 using namespace cv;
@@ -61,7 +61,7 @@ int main()
 		/*
 		 * Change temp_name according to your directory!!
 		 */
-		sprintf(temp_name,"/home/despoina/opencv_traincascade/Positive_Images/positive%d.jpg",i);
+		sprintf(temp_name,"./data/Positive_Images/positive%d.jpg",i);
 		image = cv::imread(temp_name,1);
 		if(!image.data)
 		{
@@ -90,7 +90,7 @@ int main()
 			 imshow("test", image);
 			}
 		}
-		sprintf(temp_name,"./Positive_Images/positive%d.jpg",i);
+		sprintf(temp_name,"./data/Positive_Images/positive%d.jpg",i);
 		pFile << temp_name << " " << "1" << " " << rect.x << " " << rect.y << " " <<
 				rect.width << " " << rect.height << std::endl ;
 	}
