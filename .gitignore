@@ -1,0 +1,10 @@
+*.vec
+negatives.txt
+annotations.txt
+
+bin/
+build/
+classifier/
+classifiers/
+dataset/
+
