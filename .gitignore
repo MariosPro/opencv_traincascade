@@ -1,6 +1,7 @@
 *.vec
 negatives.txt
 annotations.txt
+credentials.yml
 
 bin/
 build/
