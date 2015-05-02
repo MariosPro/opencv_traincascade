@@ -1,4 +1,5 @@
 *.vec
+config.txt
 negatives.txt
 annotations.txt
 credentials.yml
