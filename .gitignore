@@ -1,6 +1,4 @@
 *.vec
-*.png
-*.jp*g
 *.xml
 .*.swp
 *.pyc
@@ -14,4 +12,5 @@ build/
 classifier/
 classifiers/
 dataset/
-
+Images/
+testSet/
