@@ -2,6 +2,7 @@
 *.png
 *.jp*g
 *.xml
+.*.swp
 config.txt
 negatives.txt
 annotations.txt
