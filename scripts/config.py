@@ -10,6 +10,10 @@ import sys
 import argparse
 import random
 from time import clock
+from progressbar import AnimatedMarker, Bar, BouncingBar, Counter, ETA, \
+    FileTransferSpeed, FormatLabel, Percentage, \
+    ProgressBar, ReverseBar, RotatingMarker, \
+    SimpleProgress, Timer
 import cv2
 # import mail
 
@@ -60,6 +64,7 @@ class ViolaJonesCascadeTrainer:
 
         self.dataSetFolder = options["data"]
         self.classifierFolder = options["classifier"]
+        self.testSetFolder = options["test_set"]
 
         configFlag = False
         setupFlag = False
@@ -302,7 +307,6 @@ class ViolaJonesCascadeTrainer:
 
                         args = (execArgs + args + ["-mode"] + [type] +
                                 sizeArgs)
-                        print args
                         trainResult += subprocess.call(args)
                 else:
                     count = count + 1
@@ -345,74 +349,182 @@ class ViolaJonesCascadeTrainer:
         """
         completionFlag = False
 
+        # Check if there is a path for the positive images in the test set
+        # folder.
+        positivePath = os.path.join(self.testSetFolder, "Positive")
+        if not os.path.isdir(positivePath):
+            print (utils.BRED + "Could not find the folder Positive in the " +
+                   self.testSetFolder + " path" + utils.ENDC)
+            return completionFlag
+        # Check if there is a path for the negative images in the test set
+        # folder.
+        negativePath = os.path.join(self.testSetFolder, "Negative")
+        if not os.path.isdir(negativePath):
+            print (utils.BRED + "Could not find the folder Negative in the " +
+                   self.testSetFolder + " path" + utils.ENDC)
+            return completionFlag
+        # Check if an annotation file is present in the test set folder
+        annotationsDir = os.path.join(self.testSetFolder, "annotations.txt")
+        if not os.path.isfile(annotationsDir):
+                print (utils.BRED + "Could not find a negative folder in" +
+                       " the " + self.testSetFolder + " path" + utils.ENDC)
+                return completionFlag
+
         # Iterate over the classifier folder.
-        for dir in os.listdir(self.classifierFolder):
+        classifiers = os.listdir(self.classifierFolder)
+        for dir in sorted(classifiers):
             dir = os.path.join(self.classifierFolder, dir)
             if os.path.isdir(dir):
-                positiveTestSamplesFile = os.path.join(dir, "posTest.txt")
-                negativeTestSamplesFile = os.path.join(dir, "negTest.txt")
-                # Parse the test set
-                positiveTestSamples = []
-                with open(positiveTestSamplesFile, "r") as f:
-                    for line in f:
-                        positiveTestSamples.append(line.strip(" \n"))
-                negativeTestSamples = []
-                with open(negativeTestSamplesFile, "r") as f:
-                    for line in f:
-                        negativeTestSamples.append(line.strip(" \n"))
-                # classifierPath = os.path.join(dir, "cascade.xml")
-                classifierPath = "/home/vchoutas/OpenCV/opencv-2.4.9/data/lbpcascades/lbpcascade_frontalface.xml"
-                classifier = cv2.CascadeClassifier(classifierPath)
+                # Create the path to the classifier and check if the correct
+                # file exists.
+                classifierPath = os.path.join(dir, "cascade.xml")
+                if not os.path.isfile(classifierPath):
+                    print (utils.BRED + "No cascade.xml file located in" +
+                           " folder : " + dir + utils.ENDC)
+                    continue
 
-                if classifier.empty():
+                # Load the classifier from the file.
+                cascade = cv2.CascadeClassifier(classifierPath)
+                # Check if the classifier was loaded.
+                if cascade.empty():
                     print (utils.BRED + "Classifier in path {} not " +
                            "found".format(dir) + utils.ENDC)
                     continue
 
-                tp = 0
-                tn = 0
-                fp = 0
-                fn = 0
-                cascadeFlags = (cv2.cv.CV_HAAR_SCALE_IMAGE +
-                                cv2.cv.CV_HAAR_FIND_BIGGEST_OBJECT)
-                for imagePath in positiveTestSamples:
-                    img = cv2.imread(imagePath)
-                    if img is None:
-                        print (utils.BRED + "Could not read image {}!" +
-                               "Continuing on next iteration" + utils.ENDC)
+                color = (0, 0, 255)
+                truthColor = (0, 255, 0)
+
+                # Set up the widgets for the progrss bars.
+                widgets = ['Working: ', AnimatedMarker(), " ", Percentage(),
+                           " ", Bar(marker='>', left='|', right='|')]
+
+                # Initialize the counters for the machine learning measures.
+                truePos = 0
+                falsePos = 0
+                trueNeg = 0
+                falseNeg = 0
+
+                with open(annotationsDir, "r") as file:
+                    # Find the number of positive images that will be used
+                    # for testing.
+                    numLines = sum(1 for line in file)
+                    file.seek(0)
+
+                    # Initialize the progress bar.
+                    pBar = ProgressBar(widgets=widgets, maxval=numLines)
+                    print utils.BYELLOW
+                    pBar.start()
+                    count = 0
+                    # For every annotation in the text file.
+                    for line in file:
+                        tokens = line.split(",")
+
+                        # Get the name of the image.
+                        imgName = tokens[0].strip(" \n")
+                        imgName = os.path.join(positivePath, imgName)
+                        # Get the annotated bounding box.
+                        trueRec = (tokens[2], tokens[3], tokens[4], tokens[5])
+                        trueRec = utils.Rectangle(trueRec)
+
+                        if not os.path.isfile(imgName):
+                            continue
+                        # Read the image
+                        img = cv2.imread(imgName)
+                        if img is None:
+                            print (utils.BRED + "Could not read image : " +
+                                   img + utils.ENDC)
+                            print utils.BYELLOW
+                            continue
+                        if len(img.shape) > 2:
+                            grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                        else:
+                            grayImg = img
+                        # Detect the patterns on the current image.
+                        rects = cascade.detectMultiScale(grayImg,
+                                                         scaleFactor=1.1,
+                                                         minNeighbors=40,
+                                                         minSize=(80, 40))
+                        if len(rects) > 0:
+                            for rect in rects:
+                                if utils.check_overlap(rect, trueRec):
+                                    truePos += 1
+                                    # x1, y1, x2, y2 = rect
+                                    # cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+                                else:
+                                    falsePos += 1
+                        else:
+                            falseNeg += 1
+                        count += 1
+
+                        pBar.update(count)
+                    pBar.finish()
+                    print (utils.BGREEN + "Finished Iterating over the " +
+                           "Positive Samples!" + utils.ENDC)
+
+                count = 0
+
+                # Iterate over the negative path.
+
+                # Get the number of files in the negative path.
+                numFiles = len(os.listdir(negativePath))
+
+                # Initialize the progress bar for the negative path.
+                pBar = ProgressBar(widgets=widgets, maxval=numFiles)
+                print utils.BYELLOW
+                pBar.start()
+                posFalsePos = falsePos
+                # For every image in the negative Directory
+                for imgName in os.listdir(negativePath):
+                    imgName = os.path.join(negativePath, imgName)
+                    if not os.path.isfile(imgName):
+                        print (utils.BRED + "Could not read image : " +
+                               img + utils.ENDC)
+                        print utils.BYELLOW
                         continue
-                    if len(img.shape) > 1:
-                        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-
-                    rects = classifier.detectMultiScale(gray, scaleFactor=1.3,
-                                                        minNeighbors=4,
-                                                        minSize=(70, 70),
-                                                        flags=cascadeFlags)
-                    # for x1, y1, x2, y2 in rects:
-                        # cv2.rectangle(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
-                    # cv2.imshow("image", img)
-                    # cv2.waitKey(20)
-
-                for imagePath in negativeTestSamples:
-                    img = cv2.imread(imagePath)
+                        # Read the image
+                    img = cv2.imread(imgName)
                     if img is None:
-                        print (utils.BRED + "Could not read image {}!" +
-                               "Continuing on next iteration" + utils.ENDC)
                         continue
-                    if len(img.shape) > 1:
-                        gray = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                    if len(img.shape) > 2:
+                        grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                    else:
+                        grayImg = img
+                    # Detect the patterns on the current image.
+                    rects = cascade.detectMultiScale(grayImg,
+                                                     scaleFactor=1.1,
+                                                     minNeighbors=40,
+                                                     minSize=(80, 40))
+                    if len(rects) > 0:
+                        falsePos += len(rects)
+                    else:
+                        trueNeg += 1
+                    count += 1
+                    pBar.update(count)
+                pBar.finish()
+                print (utils.BGREEN + "Finished iterating over the " +
+                       "Negative Samples " + utils.ENDC)
 
-                    rects = classifier.detectMultiScale(gray, scaleFactor=1.3,
-                                                        minNeighbors=4,
-                                                        minSize=(70, 70),
-                                                        flags=cascadeFlags)
+                accuracy = (float((truePos + trueNeg)) /
+                            (truePos + trueNeg + falsePos + falseNeg))
+                precision = float(truePos) / (truePos + falsePos)
+                if truePos + falseNeg != 0:
+                    recall = float(truePos) / (truePos + falseNeg)
+                else:
+                    recall = 1.5
+                if precision != 0 and recall <= 1:
+                    fMeasure = 2 * precision * recall / (precision + recall)
+                else:
+                    fMeasure = "Nan"
 
+                resultsFile = os.path.join(dir, "results.txt")
+                with open(resultsFile, "w") as file:
+                    file.write("Accuracy : " + str(accuracy) + " \n")
+                    file.write("Precision : " + str(precision) + "\n")
+                    file.write("Recall : " + str(recall) + " \n")
+                    file.write("F-Measure : " + str(fMeasure) + "\n")
 
-            cv2.destroyAllWindows()
-
-
-
-
+        # cv2.destroyAllWindows()
+        return True
         pass
     # End of cross_validation
 
@@ -534,35 +646,37 @@ class ViolaJonesCascadeTrainer:
                                         width,
                                         height))
                 completionFlag = completionFlag or extraSamplesFlag
-            # TO DO : Add else case in order to generate vec files
-            # with no extra synthetic samples.
-            # else:
+
+                # Open the txt file that will contain the paths
+                # to all the created samples.
+                with open(samplesDestinationDir +
+                          "/samples.txt", "w") as samplesFile:
+                    # Iterate over all the files in the samples folder
+                    # and copy the path of all the ".vec" files in
+                    # the ".txt" file.
+                    vecDir = os.path.join(samplesDestinationDir, "vec")
+                    for file in os.listdir(vecDir):
+                        if (os.path.isfile(vecDir + "/" + file)
+                                and ".vec" in file):
+
+                            # Write the path to the file.
+                            samplesFile.write(vecDir + "/" + file + "\n")
+
+                # Merge the samples in one ".vec" file.
+                mergeFlag = self.mergeSamples(samplesDestinationDir +
+                                              "/samples.txt",
+                                              samplesDestinationDir)
+                completionFlag = completionFlag or mergeFlag
+                # TO DO : Add else case in order to generate vec files
+                # with no extra synthetic samples.
+                # else:
             with open(os.path.join(samplesDestinationDir,
                                    "config.txt"), "w") as config:
                 config.write("width : " + width + "\n")
                 config.write("height : " + height + "\n")
 
-            # Open the txt file that will contain the paths
-            # to all the created samples.
-            with open(samplesDestinationDir +
-                      "/samples.txt", "w") as samplesFile:
-                # Iterate over all the files in the samples folder
-                # and copy the path of all the ".vec" files in
-                # the ".txt" file.
-                vecDir = os.path.join(samplesDestinationDir, "vec")
-                for file in os.listdir(vecDir):
-                    if (os.path.isfile(vecDir + "/" + file)
-                            and ".vec" in file):
-
-                        # Write the path to the file.
-                        samplesFile.write(vecDir + "/" + file + "\n")
-
-            # Merge the samples in one ".vec" file.
-            mergeFlag = self.mergeSamples(samplesDestinationDir +
-                                          "/samples.txt",
-                                          samplesDestinationDir)
-            completionFlag = completionFlag or mergeFlag
-        print (utils.BGREEN + "Finished preparing the datasets!" + utils.ENDC)
+            print (utils.BGREEN + "Finished preparing the datasets!" +
+                   utils.ENDC)
         return completionFlag
     # End of prepareDataSet.
 
