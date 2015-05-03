@@ -104,11 +104,11 @@ class ViolaJonesCascadeTrainer:
                        utils.ENDC)
                 sys.exit(-1)
 
-            trainFlag = self.trainClassifier()
-            if not trainFlag:
-                print (utils.BRED + "Could not train the classifiers!" +
-                       utils.ENDC)
-                sys.exit(-1)
+            # trainFlag = self.trainClassifier()
+            # if not trainFlag:
+                # print (utils.BRED + "Could not train the classifiers!" +
+                       # utils.ENDC)
+                # sys.exit(-1)
         if options["cross_validation"]:
             self.cross_validation()
             pass
@@ -391,9 +391,6 @@ class ViolaJonesCascadeTrainer:
                            "found".format(dir) + utils.ENDC)
                     continue
 
-                color = (0, 0, 255)
-                truthColor = (0, 255, 0)
-
                 # Set up the widgets for the progrss bars.
                 widgets = ['Working: ', AnimatedMarker(), " ", Percentage(),
                            " ", Bar(marker='>', left='|', right='|')]
@@ -412,7 +409,6 @@ class ViolaJonesCascadeTrainer:
 
                     # Initialize the progress bar.
                     pBar = ProgressBar(widgets=widgets, maxval=numLines)
-                    print utils.BYELLOW
                     pBar.start()
                     count = 0
                     # For every annotation in the text file.
@@ -433,7 +429,6 @@ class ViolaJonesCascadeTrainer:
                         if img is None:
                             print (utils.BRED + "Could not read image : " +
                                    img + utils.ENDC)
-                            print utils.BYELLOW
                             continue
                         if len(img.shape) > 2:
                             grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -470,7 +465,6 @@ class ViolaJonesCascadeTrainer:
 
                 # Initialize the progress bar for the negative path.
                 pBar = ProgressBar(widgets=widgets, maxval=numFiles)
-                print utils.BYELLOW
                 pBar.start()
                 posFalsePos = falsePos
                 # For every image in the negative Directory
@@ -479,7 +473,6 @@ class ViolaJonesCascadeTrainer:
                     if not os.path.isfile(imgName):
                         print (utils.BRED + "Could not read image : " +
                                img + utils.ENDC)
-                        print utils.BYELLOW
                         continue
                         # Read the image
                     img = cv2.imread(imgName)
@@ -562,7 +555,8 @@ class ViolaJonesCascadeTrainer:
                     else:
                         testSet.append(os.path.relpath(subDir))
             positiveCollection.append({"training": trainingSet,
-                                      "test": testSet})
+                                       "test": testSet,
+                                       "directory": directory})
 
         negativeCollection = []
         # Iterate over all the specified negative image directories.
@@ -602,11 +596,12 @@ class ViolaJonesCascadeTrainer:
             negImages = comb[1]
             width = comb[2]
             height = comb[3]
-
+            annotationsPath = os.path.join(posImages["directory"],
+                                           "info.dat")
             # Create, if necessary, the directory where the dataset will
             # be saved.
-            samplesDestinationDir = (self.dataSetFolder +
-                                     "/samples" + str(count))
+            samplesDestinationDir = os.path.join(self.dataSetFolder,
+                                                 "samples" + str(count))
             if (not os.path.isdir(samplesDestinationDir)):
                 os.mkdir(samplesDestinationDir)
 
@@ -669,7 +664,12 @@ class ViolaJonesCascadeTrainer:
                 completionFlag = completionFlag or mergeFlag
                 # TO DO : Add else case in order to generate vec files
                 # with no extra synthetic samples.
-                # else:
+            else:
+                vecCreation = self.createTrainingSamples(samplesDestinationDir,
+                                                         annotationsPath,
+                                                         width, height)
+                completionFlag = completionFlag or vecCreation
+
             with open(os.path.join(samplesDestinationDir,
                                    "config.txt"), "w") as config:
                 config.write("width : " + width + "\n")
@@ -680,9 +680,40 @@ class ViolaJonesCascadeTrainer:
         return completionFlag
     # End of prepareDataSet.
 
-    def createTrainingSamples(self, destination, annotationsDir,
-                              width, height):
-        pass
+    def createTrainingSamples(self, destination, annotationsPath,
+                              width="24", height="24"):
+
+        createSamplesPath = utils.fileSearch("opencv_createsamples")
+        if createSamplesPath is None:
+            return False
+        
+        with open(annotationsPath, "r") as annotationsFile:
+            numImgs = sum(1 for line in annotationsFile)
+
+        destinationFile = os.path.join(destination, "samples.vec")
+        try:
+            devnull = open('/dev/null', 'w')
+            out = devnull
+        except:
+            print ("Could not open /dev/null. The script output will not" +
+                   " be" + "suppressed!")
+            out = None
+        finally:
+            try:
+                createVecCommand = ([createSamplesPath] + ["-info"] +
+                                    [annotationsPath] + ["-vec"] +
+                                    [destinationFile] + ["-w"] + [width] +
+                                    ["-h"] + [height] + ["-num"] +
+                                    [str(numImgs)])
+                print createVecCommand
+                # subprocess.check_output(perlCommand, stdout=out)
+                createSamplesResult = subprocess.call(createVecCommand,
+                                                      stdout=out)
+            except KeyboardInterrupt:
+                print "Ctrl-C was pressed by the user"
+                createSamplesResult = -1
+            devnull.close()
+        return createSamplesResult == 0
 
     # This function creates extra training samples by applying perspective
     # transformations on the provided positive samples, adding a random
