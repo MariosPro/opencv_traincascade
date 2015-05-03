@@ -1,4 +1,7 @@
 *.vec
+*.png
+*.jp*g
+*.xml
 config.txt
 negatives.txt
 annotations.txt
