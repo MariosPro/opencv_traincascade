@@ -3,6 +3,7 @@
 *.jp*g
 *.xml
 .*.swp
+*.pyc
 config.txt
 negatives.txt
 annotations.txt
