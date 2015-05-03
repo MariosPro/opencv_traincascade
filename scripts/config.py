@@ -18,6 +18,7 @@ class ViolaJonesCascadeTrainer:
 
     dataSetFolder = ""
     classifierFolder = ""
+    testSetFolder = ""
 
     def __init__(self):
 
@@ -48,6 +49,9 @@ class ViolaJonesCascadeTrainer:
                             help="The folder where all the" +
                             " resulting classifiers will be stored!",
                             default=os.path.join(os.getcwd(), "classifier"))
+        parser.add_argument("-ts", "--test-set", type=str,
+                            help="The folder containing the test set",
+                            default=os.path.join(os.getcwd(), "testSet"))
 
         # self.postman = mail.Postman()
 
@@ -120,13 +124,13 @@ class ViolaJonesCascadeTrainer:
             import pkgconfig
             findPkgConfig = True
         except ImportError:
-            print (utils.BRED + "Could not find package 'pkgconfig'."
-                   + " Please install it to continue" + utils.ENDC)
-            print (utils.BRED + "Installation Command : sudo pip install"
-                   + " pkgconfig" + utils.ENDC)
+            print (utils.BRED + "Could not find package 'pkgconfig'." +
+                   " Please install it to continue" + utils.ENDC)
+            print (utils.BRED + "Installation Command : sudo pip install" +
+                   " pkgconfig" + utils.ENDC)
         except:
-            print (utils.BRED + "An error has occured when importing"
-                   + " pkgconfig. Please try again!" + utils.ENDC)
+            print (utils.BRED + "An error has occured when importing" +
+                   "pkgconfig. Please try again!" + utils.ENDC)
         if not findPkgConfig:
             return findPkgConfig
 
@@ -149,38 +153,38 @@ class ViolaJonesCascadeTrainer:
             return False
         else:
             print (utils.BOLD + utils.BLUE + "Found " + cascadeBinName +
-                   " in path : " + trainCascadeBinDir.strip(cascadeBinName)
-                   + utils.ENDC)
+                   " in path : " + trainCascadeBinDir.strip(cascadeBinName) +
+                   utils.ENDC)
 
         # Get the current directory.
         cMakeListDir = os.getcwd()
 
         if ("build" not in os.listdir(cMakeListDir)):
-            print (utils.BOLD + utils.GREEN + "Creating build directory!"
-                   + utils.ENDC)
+            print (utils.BOLD + utils.GREEN + "Creating build directory!" +
+                   utils.ENDC)
             os.mkdir("build")
 
         os.chdir("build")
 
         # Execute the CMake Script to generate the build file.
         if ("CMakeLists.txt" not in os.listdir(cMakeListDir)):
-            print (utils.BOLD + utils.RED + "No CMakeLists.txt was not found!"
-                   + utils.ENDC)
+            print (utils.BOLD + utils.RED + "No CMakeLists.txt was " +
+                   "not found!" + utils.ENDC)
             return False
 
         cmakeString = ["cmake", ".."]
         cMakeResult = subprocess.call(cmakeString)
 
         if (cMakeResult):
-            print (utils.BOLD + utils.RED + "Could not execute CMake scripts!"
-                   + utils.ENDC)
+            print (utils.BOLD + utils.RED + "Could not execute CMake " +
+                   "scripts!" + utils.ENDC)
             return False
 
         makeFlags = subprocess.call("make")
 
         if (makeFlags):
-            print (utils.BOLD + utils.RED + "Could not build the source files!"
-                   + utils.ENDC)
+            print (utils.BOLD + utils.RED + "Could not build the source" +
+                   " files!" + utils.ENDC)
             return False
 
         print (utils.BOLD + utils.GREEN + "-- The generated executables are" +
@@ -241,9 +245,12 @@ class ViolaJonesCascadeTrainer:
 
             # Create all possible classifier options.
             for combination in paramCombs:
+
                 trainerArgs = []
+                parameters = []
                 for x, y in zip(opts, combination):
                     trainerArgs = trainerArgs + [x] + [y]
+                    parameters.append(x.strip("- ") + " : " + y)
 
                 # Create the list of arguments that will be passed to the
                 # cascade classifer trainer.
@@ -314,6 +321,10 @@ class ViolaJonesCascadeTrainer:
                                    ["negatives.txt"] +
                                    cascadeArgs + sizeArgs)
                     trainResult = subprocess.call(cascadeArgs)
+                paramsPath = os.path.join(newCascadeDest, "params.txt")
+                with open(paramsPath, "w") as paramFile:
+                    for param in parameters:
+                        paramFile.write(param + "\n")
 
                 # Copy the cross validation files to the classifier dir.
                 posCrossValidationFile = os.path.join(entry, "posTest.txt")
@@ -435,10 +446,8 @@ class ViolaJonesCascadeTrainer:
                 if (os.path.isfile(subDir) and ("jpg" in subDir or
                                                 "png" in subDir)):
                     if random.random() > 0:
-                        # positiveCollection[-1].append(os.path.relpath(subDir))
                         trainingSet.append(os.path.relpath(subDir))
                     else:
-                        # positiveValidationSets[-1].append(os.path.relpath(subDir))
                         testSet.append(os.path.relpath(subDir))
             positiveCollection.append({"training": trainingSet,
                                       "test": testSet})
@@ -446,8 +455,6 @@ class ViolaJonesCascadeTrainer:
         negativeCollection = []
         # Iterate over all the specified negative image directories.
         for directory in self.params["Negative Directory"]:
-            # negativeCollection.append([])
-            # negativeValidationSets.append([])
             trainingSet = []
             testSet = []
 
@@ -459,14 +466,11 @@ class ViolaJonesCascadeTrainer:
                 if (os.path.isfile(subDir) and ("jpg" in subDir or
                                                 "png" in subDir)):
                     if random.random() > 0.0:
-                        # negativeCollection[-1].append(os.path.relpath(subDir))
                         trainingSet.append(os.path.relpath(subDir))
                     else:
-                        # negativeValidationSets[-1].append(os.path.relpath(subDir))
                         testSet.append(os.path.relpath(subDir))
             negativeCollection.append({"training": trainingSet,
                                       "test": testSet})
-
 
         # dataSetCombs = itertools.product(positiveCollection["training"],
                                          # negativeCollection["training"],
@@ -476,7 +480,6 @@ class ViolaJonesCascadeTrainer:
                                          negativeCollection,
                                          self.params["width"],
                                          self.params["height"])
-
 
         completionFlag = False
         for comb in dataSetCombs:
@@ -555,25 +558,26 @@ class ViolaJonesCascadeTrainer:
                         samplesFile.write(vecDir + "/" + file + "\n")
 
             # Merge the samples in one ".vec" file.
-            mergeFlag = self.mergeSamples(samplesDestinationDir
-                                          + "/samples.txt",
+            mergeFlag = self.mergeSamples(samplesDestinationDir +
+                                          "/samples.txt",
                                           samplesDestinationDir)
             completionFlag = completionFlag or mergeFlag
         print (utils.BGREEN + "Finished preparing the datasets!" + utils.ENDC)
         return completionFlag
     # End of prepareDataSet.
 
-    def createTrainingSamples(self, destination, annotationsDir, width, height):
-        
+    def createTrainingSamples(self, destination, annotationsDir,
+                              width, height):
         pass
 
     # This function creates extra training samples by applying perspective
     # transformations on the provided positive samples, adding a random
     # background(using a provided negative image) and/or white noise.
-    def createSyntheticTrainingSamples(self, positiveFileName, negativeFileName,
-                                   destinationFolder,
-                                   width="24",
-                                   height="24"):
+    def createSyntheticTrainingSamples(self, positiveFileName,
+                                       negativeFileName,
+                                       destinationFolder,
+                                       width="24",
+                                       height="24"):
         destination = os.path.join(destinationFolder, "vec")
         if not os.path.isdir(destination):
             os.mkdir(destination)
@@ -581,8 +585,8 @@ class ViolaJonesCascadeTrainer:
             devnull = open('/dev/null', 'w')
             out = devnull
         except:
-            print ("Could not open /dev/null. The script output will not be"
-                   + "suppressed!")
+            print ("Could not open /dev/null. The script output will not" +
+                   " be" + "suppressed!")
             out = None
         finally:
             try:
