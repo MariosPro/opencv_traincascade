@@ -11,7 +11,7 @@ import argparse
 import random
 from time import clock
 import cv2
-# import mail
+import mail
 
 
 class ViolaJonesCascadeTrainer:
@@ -53,7 +53,7 @@ class ViolaJonesCascadeTrainer:
                             help="The folder containing the test set",
                             default=os.path.join(os.getcwd(), "testSet"))
 
-        # self.postman = mail.Postman()
+        self.postman = mail.Postman()
 
         options, junk = parser.parse_known_args()
         options = vars(options)
@@ -333,6 +333,14 @@ class ViolaJonesCascadeTrainer:
                 shutil.copy(negCrossValidationFile, newCascadeDest)
 
                 completionFlag = completionFlag or (trainResult == 0)
+                if completionFlag:
+                    result = "Success"
+                else:
+                    result = "Failure"
+                results = dict(zip(self.params.keys(), combination))
+                results.update({"Training Result": result})
+                results.update({"Dataset Used": entry})
+                self.postman.send_mail(self.params["MailDestination"], results)
 
         os.remove("negatives.txt")
         print (utils.BGREEN + "The training of the Viola Jones Cascade " +
@@ -818,7 +826,7 @@ class ViolaJonesCascadeTrainer:
                               " you when the training procedure completes: ")
 
             # Write it to the configuration file.
-            utils.writeCSV(config, "Notification Mail Destination", input)
+            utils.writeCSV(config, "MailDestination", input)
 
             # Get from the user the list of positive image directories.
             input = raw_input("Please input the directories where the" +

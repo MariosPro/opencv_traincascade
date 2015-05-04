@@ -3,13 +3,17 @@
 import smtplib
 import os
 import yaml
+import utils
+from email.mime.text import MIMEText
 
 
-class Postman:
+class Postman():
+
+    """A class that is used to send mails to a user."""
 
     def __init__(self):
 
-        self.load_credentials()
+        self.success = self.load_credentials()
         self.smtpObj = smtplib.SMTP(self.credentials["server_name"],
                                     self.credentials["smtp_port"])
         self.smtpObj.ehlo()
@@ -22,33 +26,31 @@ class Postman:
         if not credentials_file:
             credentials_file = "credentials.yml"
         doc = open(credentials_file, "r")
+        if doc.closed:
+            print (utils.BRED + "Could not open the credentials file" +
+                   utils.ENDC)
+            return False
         self.credentials = yaml.safe_load(doc)
         doc.close()
+        return True
 
-    def send_mail(self, receivers, results):
-        message = ("From: Pandora Victim Training"
-                   + "<pandora_training@olympus.ee.auth.gr>"
-                   + "\nTo: To Person"
-                   + "\nSubject: Victim training Job"
-                   + "\nTraining Result Message :\n")
+    def send_mail(self, receivers, msg):
+        if not self.success:
+            return None
         try:
-            if isinstance(receivers, list):
-                receivers = "".join(receivers)
-            for key, value in results.iteritems():
-                message += key + " : " + str(value) + " \n"
-            print message
-            body = "" + message + ""
+            # if isinstance(receivers, list):
+                # receivers = "".join(receivers)
+            body = ""
+            for key, value in msg.iteritems():
+                body += key + " : " + str(value) + " \n"
+            # body = "" + message + ""
+            message = MIMEText(body)
+            message["Subject"] = "Training Result"
+            message["From"] = "Pandora Victim Training"
+            message["To"] = ", ".join(receivers)
 
-            subject = "Training Result"
-            headers = ["From: Pandora Victim Training",
-                       "Subject: " + subject,
-                       "To: " + receivers,
-                       "MIME-Version: 1.0",
-                       "Content-Type: text/html"]
-            headers = "\r\n".join(headers)
-            print body
             self.smtpObj.sendmail(self.credentials["user_name"], receivers,
-                                  self.message)
-            print "Successfully sent email"
+                                  message.as_string())
+            print utils.BGREEN + "Successfully sent email" + utils.ENDC
         except:
-            print "Error: unable to send email"
+            print utils.BRED + "Error: unable to send email" + utils.ENDC
