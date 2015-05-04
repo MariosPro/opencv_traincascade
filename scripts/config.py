@@ -220,6 +220,9 @@ class ViolaJonesCascadeTrainer:
                                 os.path.join("bin", "opencv_traincascade"))
 
         completionFlag = False
+        trainingParams = ["Num Stages", "minHitRate", "maxFalseAlarmRate",
+                          "Num Pos", "Num Neg", "featureType",
+                          "precalcValBufSize", "precalcldxBufSize"]
         # Check all subfolders of the dataset path.
         for entry in os.listdir(self.dataSetFolder):
             # Check if the current value of the iterator is a path.
@@ -337,7 +340,7 @@ class ViolaJonesCascadeTrainer:
                     result = "Success"
                 else:
                     result = "Failure"
-                results = dict(zip(self.params.keys(), combination))
+                results = dict(zip(trainingParams, combination))
                 results.update({"Training Result": result})
                 results.update({"Dataset Used": entry})
                 self.postman.send_mail(self.params["MailDestination"], results)

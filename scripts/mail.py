@@ -25,14 +25,20 @@ class Postman():
         credentials_file = os.getenv("CREDENTIALS_FILE")
         if not credentials_file:
             credentials_file = "credentials.yml"
-        doc = open(credentials_file, "r")
-        if doc.closed:
+
+        completion = False
+        try:
+            doc = open(credentials_file, "r")
+            self.credentials = yaml.safe_load(doc)
+            completion = True
+        except:
             print (utils.BRED + "Could not open the credentials file" +
                    utils.ENDC)
-            return False
-        self.credentials = yaml.safe_load(doc)
-        doc.close()
-        return True
+            completion = False
+        finally:
+            doc.close()
+
+        return completion
 
     def send_mail(self, receivers, msg):
         if not self.success:
@@ -46,7 +52,7 @@ class Postman():
             # body = "" + message + ""
             message = MIMEText(body)
             message["Subject"] = "Training Result"
-            message["From"] = "Pandora Victim Training"
+            message["From"] = self.credentials["user_name"] 
             message["To"] = ", ".join(receivers)
 
             self.smtpObj.sendmail(self.credentials["user_name"], receivers,
