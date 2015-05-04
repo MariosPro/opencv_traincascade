@@ -35,8 +35,6 @@ class Postman():
             print (utils.BRED + "Could not open the credentials file" +
                    utils.ENDC)
             completion = False
-        finally:
-            doc.close()
 
         return completion
 
