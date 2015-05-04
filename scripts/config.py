@@ -667,7 +667,7 @@ class ViolaJonesCascadeTrainer:
         createSamplesPath = utils.fileSearch("opencv_createsamples")
         if createSamplesPath is None:
             return False
-        
+
         with open(annotationsPath, "r") as annotationsFile:
             numImgs = sum(1 for line in annotationsFile)
 
@@ -686,7 +686,6 @@ class ViolaJonesCascadeTrainer:
                                     [destinationFile] + ["-w"] + [width] +
                                     ["-h"] + [height] + ["-num"] +
                                     [str(numImgs)])
-                print createVecCommand
                 # subprocess.check_output(perlCommand, stdout=out)
                 createSamplesResult = subprocess.call(createVecCommand,
                                                       stdout=out)
