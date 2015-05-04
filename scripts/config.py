@@ -307,7 +307,6 @@ class ViolaJonesCascadeTrainer:
 
                         args = (execArgs + args + ["-mode"] + [type] +
                                 sizeArgs)
-                        print args
                         trainResult += subprocess.call(args)
                 else:
                     count = count + 1
@@ -375,6 +374,7 @@ class ViolaJonesCascadeTrainer:
         classifiers = os.listdir(self.classifierFolder)
 
         positiveImageData = []
+        print "Reading the positive image samples!"
         with open(annotationsDir, "r") as file:
             # Find the number of positive images that will be used
             # for testing.
@@ -391,15 +391,38 @@ class ViolaJonesCascadeTrainer:
                 trueRec = utils.Rectangle(trueRec)
                 if not os.path.isfile(imgName):
                     continue
-
-                positiveImageData.append({"Name": imgName,
+                img = cv2.imread(imgName)
+                if img is None:
+                    print (utils.BRED + "Could not read image : " +
+                           img + utils.ENDC)
+                    continue
+                if len(img.shape) > 2:
+                    grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                else:
+                    grayImg = img
+                positiveImageData.append({"Image": img,
                                           "Bounding Box": trueRec})
-        # Set up the widgets for the progrss bars.
-        # widgets = ['Working: ', Counter(), " ", Percentage(),
-                   # " ", Bar(marker='>', left='|', right='|')]
 
-        # pBar.start()
-        # progressCount = 0
+        print "Finished reading the positive samples!"
+        negativeImgs = []
+        print "Reading the negative samples!"
+        for imgName in os.listdir(negativePath):
+            imgName = os.path.join(negativePath, imgName)
+            if not os.path.isfile(imgName):
+                print (utils.BRED + "Could not read image : " +
+                       img + utils.ENDC)
+                continue
+                # Read the image
+            img = cv2.imread(imgName)
+            if img is None:
+                continue
+            if len(img.shape) > 2:
+                grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+            else:
+                grayImg = img
+            negativeImgs.append(grayImg)
+        print "Finished reading the negative samples .\n"
+
         for dir in sorted(classifiers):
             dir = os.path.join(self.classifierFolder, dir)
             if os.path.isdir(dir):
@@ -425,16 +448,8 @@ class ViolaJonesCascadeTrainer:
                 trueNeg = 0
                 falseNeg = 0
                 for data in positiveImageData:
-                    img = cv2.imread(data["Name"])
-                    if img is None:
-                        print (utils.BRED + "Could not read image : " +
-                               img + utils.ENDC)
-                        continue
-                    if len(img.shape) > 2:
-                        grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                    else:
-                        grayImg = img
                     # Detect the patterns on the current image.
+                    grayImg = data["Image"]
                     rects = cascade.detectMultiScale(grayImg, scaleFactor=1.1,
                                                      minNeighbors=40,
                                                      minSize=(80, 40))
@@ -443,8 +458,6 @@ class ViolaJonesCascadeTrainer:
                         for rect in rects:
                             if utils.check_overlap(rect, trueRec):
                                 truePos += 1
-                                # x1, y1, x2, y2 = rect
-                                # cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
                             else:
                                 falsePos += 1
                     else:
@@ -456,21 +469,8 @@ class ViolaJonesCascadeTrainer:
                 posFalsePos = falsePos
 
                 # For every image in the negative Directory
-                for imgName in os.listdir(negativePath):
-                    imgName = os.path.join(negativePath, imgName)
-                    if not os.path.isfile(imgName):
-                        print (utils.BRED + "Could not read image : " +
-                               img + utils.ENDC)
-                        continue
-                        # Read the image
-                    img = cv2.imread(imgName)
-                    if img is None:
-                        continue
-                    if len(img.shape) > 2:
-                        grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                    else:
-                        grayImg = img
-                    # Detect the patterns on the current image.
+                for grayImg in negativeImgs:
+                                # Detect the patterns on the current image.
                     rects = cascade.detectMultiScale(grayImg,
                                                      scaleFactor=1.1,
                                                      minNeighbors=40,
@@ -488,11 +488,11 @@ class ViolaJonesCascadeTrainer:
                 if truePos + falseNeg != 0:
                     recall = float(truePos) / (truePos + falseNeg)
                 else:
-                    recall = 1.5
-                if precision != 0 and recall <= 1:
-                    fMeasure = 2 * precision * recall / (precision + recall)
+                    recall = float("nan")
+                if precision == 0 or math.isnan(recall):
+                    fMeasure = "NaN"
                 else:
-                    fMeasure = "Nan"
+                    fMeasure = 2 * precision * recall / (precision + recall)
 
                 resultsFile = os.path.join(dir, "results.txt")
                 with open(resultsFile, "w") as file:
@@ -500,9 +500,6 @@ class ViolaJonesCascadeTrainer:
                     file.write("Precision : " + str(precision) + "\n")
                     file.write("Recall : " + str(recall) + " \n")
                     file.write("F-Measure : " + str(fMeasure) + "\n")
-                # progressCount += 1
-                # pBar.update()
-        # pBar.finish()
 
         # cv2.destroyAllWindows()
         return True
