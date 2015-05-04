@@ -10,10 +10,6 @@ import sys
 import argparse
 import random
 from time import clock
-from progressbar import AnimatedMarker, Bar, BouncingBar, Counter, ETA, \
-    FileTransferSpeed, FormatLabel, Percentage, \
-    ProgressBar, ReverseBar, RotatingMarker, \
-    SimpleProgress, Timer
 import cv2
 # import mail
 
