@@ -104,11 +104,11 @@ class ViolaJonesCascadeTrainer:
                        utils.ENDC)
                 sys.exit(-1)
 
-            # trainFlag = self.trainClassifier()
-            # if not trainFlag:
-                # print (utils.BRED + "Could not train the classifiers!" +
-                       # utils.ENDC)
-                # sys.exit(-1)
+            trainFlag = self.trainClassifier()
+            if not trainFlag:
+                print (utils.BRED + "Could not train the classifiers!" +
+                       utils.ENDC)
+                sys.exit(-1)
         if options["cross_validation"]:
             self.cross_validation()
             pass
@@ -307,6 +307,7 @@ class ViolaJonesCascadeTrainer:
 
                         args = (execArgs + args + ["-mode"] + [type] +
                                 sizeArgs)
+                        print args
                         trainResult += subprocess.call(args)
                 else:
                     count = count + 1
@@ -372,6 +373,33 @@ class ViolaJonesCascadeTrainer:
 
         # Iterate over the classifier folder.
         classifiers = os.listdir(self.classifierFolder)
+
+        positiveImageData = []
+        with open(annotationsDir, "r") as file:
+            # Find the number of positive images that will be used
+            # for testing.
+            numLines = sum(1 for line in file)
+            file.seek(0)
+            for line in file:
+                tokens = line.split(",")
+
+                # Get the name of the image.
+                imgName = tokens[0].strip(" \n")
+                imgName = os.path.join(positivePath, imgName)
+                # Get the annotated bounding box.
+                trueRec = (tokens[2], tokens[3], tokens[4], tokens[5])
+                trueRec = utils.Rectangle(trueRec)
+                if not os.path.isfile(imgName):
+                    continue
+
+                positiveImageData.append({"Name": imgName,
+                                          "Bounding Box": trueRec})
+        # Set up the widgets for the progrss bars.
+        # widgets = ['Working: ', Counter(), " ", Percentage(),
+                   # " ", Bar(marker='>', left='|', right='|')]
+
+        # pBar.start()
+        # progressCount = 0
         for dir in sorted(classifiers):
             dir = os.path.join(self.classifierFolder, dir)
             if os.path.isdir(dir):
@@ -391,82 +419,42 @@ class ViolaJonesCascadeTrainer:
                            "found".format(dir) + utils.ENDC)
                     continue
 
-                # Set up the widgets for the progrss bars.
-                widgets = ['Working: ', AnimatedMarker(), " ", Percentage(),
-                           " ", Bar(marker='>', left='|', right='|')]
-
                 # Initialize the counters for the machine learning measures.
                 truePos = 0
                 falsePos = 0
                 trueNeg = 0
                 falseNeg = 0
+                for data in positiveImageData:
+                    img = cv2.imread(data["Name"])
+                    if img is None:
+                        print (utils.BRED + "Could not read image : " +
+                               img + utils.ENDC)
+                        continue
+                    if len(img.shape) > 2:
+                        grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                    else:
+                        grayImg = img
+                    # Detect the patterns on the current image.
+                    rects = cascade.detectMultiScale(grayImg, scaleFactor=1.1,
+                                                     minNeighbors=40,
+                                                     minSize=(80, 40))
+                    if len(rects) > 0:
+                        trueRec = data["Bounding Box"]
+                        for rect in rects:
+                            if utils.check_overlap(rect, trueRec):
+                                truePos += 1
+                                # x1, y1, x2, y2 = rect
+                                # cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
+                            else:
+                                falsePos += 1
+                    else:
+                        falseNeg += 1
 
-                with open(annotationsDir, "r") as file:
-                    # Find the number of positive images that will be used
-                    # for testing.
-                    numLines = sum(1 for line in file)
-                    file.seek(0)
+                print (utils.BGREEN + "Finished Iterating over the " +
+                       "Positive Samples!" + utils.ENDC)
 
-                    # Initialize the progress bar.
-                    pBar = ProgressBar(widgets=widgets, maxval=numLines)
-                    pBar.start()
-                    count = 0
-                    # For every annotation in the text file.
-                    for line in file:
-                        tokens = line.split(",")
-
-                        # Get the name of the image.
-                        imgName = tokens[0].strip(" \n")
-                        imgName = os.path.join(positivePath, imgName)
-                        # Get the annotated bounding box.
-                        trueRec = (tokens[2], tokens[3], tokens[4], tokens[5])
-                        trueRec = utils.Rectangle(trueRec)
-
-                        if not os.path.isfile(imgName):
-                            continue
-                        # Read the image
-                        img = cv2.imread(imgName)
-                        if img is None:
-                            print (utils.BRED + "Could not read image : " +
-                                   img + utils.ENDC)
-                            continue
-                        if len(img.shape) > 2:
-                            grayImg = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
-                        else:
-                            grayImg = img
-                        # Detect the patterns on the current image.
-                        rects = cascade.detectMultiScale(grayImg,
-                                                         scaleFactor=1.1,
-                                                         minNeighbors=40,
-                                                         minSize=(80, 40))
-                        if len(rects) > 0:
-                            for rect in rects:
-                                if utils.check_overlap(rect, trueRec):
-                                    truePos += 1
-                                    # x1, y1, x2, y2 = rect
-                                    # cv2.rectangle(img, (x1, y1), (x2, y2), color, 2)
-                                else:
-                                    falsePos += 1
-                        else:
-                            falseNeg += 1
-                        count += 1
-
-                        pBar.update(count)
-                    pBar.finish()
-                    print (utils.BGREEN + "Finished Iterating over the " +
-                           "Positive Samples!" + utils.ENDC)
-
-                count = 0
-
-                # Iterate over the negative path.
-
-                # Get the number of files in the negative path.
-                numFiles = len(os.listdir(negativePath))
-
-                # Initialize the progress bar for the negative path.
-                pBar = ProgressBar(widgets=widgets, maxval=numFiles)
-                pBar.start()
                 posFalsePos = falsePos
+
                 # For every image in the negative Directory
                 for imgName in os.listdir(negativePath):
                     imgName = os.path.join(negativePath, imgName)
@@ -491,9 +479,6 @@ class ViolaJonesCascadeTrainer:
                         falsePos += len(rects)
                     else:
                         trueNeg += 1
-                    count += 1
-                    pBar.update(count)
-                pBar.finish()
                 print (utils.BGREEN + "Finished iterating over the " +
                        "Negative Samples " + utils.ENDC)
 
@@ -515,6 +500,9 @@ class ViolaJonesCascadeTrainer:
                     file.write("Precision : " + str(precision) + "\n")
                     file.write("Recall : " + str(recall) + " \n")
                     file.write("F-Measure : " + str(fMeasure) + "\n")
+                # progressCount += 1
+                # pBar.update()
+        # pBar.finish()
 
         # cv2.destroyAllWindows()
         return True
@@ -735,14 +723,14 @@ class ViolaJonesCascadeTrainer:
             out = None
         finally:
             try:
-                perlCommand = ("perl" + " scripts/createsamples.pl "
-                               + positiveFileName + " " + negativeFileName
-                               + " " + destination + " "
-                               + self.params["extraSamplesNum"][0] + " "
-                               + '"opencv_createsamples -bgcolor 0 -bgthresh 0'
-                               + '-maxxangle 1.1 -maxyangle 1.1 maxzangle 0.5'
-                               + ' -maxidev 40 -w ' + width
-                               + ' -h ' + height + '"')
+                perlCommand = ("perl" + " scripts/createsamples.pl " +
+                               positiveFileName + " " + negativeFileName +
+                               " " + destination + " " +
+                               self.params["extraSamplesNum"][0] + " " +
+                               '"opencv_createsamples -bgcolor 0 ' +
+                               '-bgthresh 0 -maxxangle 1.1 -maxyangle 1.1' +
+                               ' maxzangle 0.5' + ' -maxidev 40 -w ' + width +
+                               ' -h ' + height + '"')
                 print perlCommand
                 # subprocess.check_output(perlCommand, stdout=out)
                 perlScriptResult = subprocess.call(perlCommand, stdout=out,
