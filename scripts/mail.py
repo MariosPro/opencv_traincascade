@@ -14,12 +14,13 @@ class Postman():
     def __init__(self):
 
         self.success = self.load_credentials()
-        self.smtpObj = smtplib.SMTP(self.credentials["server_name"],
-                                    self.credentials["smtp_port"])
-        self.smtpObj.ehlo()
-        self.smtpObj.starttls()
-        self.smtpObj.login(self.credentials["user_name"],
-                           self.credentials["password"])
+        if self.success:
+            self.smtpObj = smtplib.SMTP(self.credentials["server_name"],
+                                        self.credentials["smtp_port"])
+            self.smtpObj.ehlo()
+            self.smtpObj.starttls()
+            self.smtpObj.login(self.credentials["user_name"],
+                               self.credentials["password"])
 
     def load_credentials(self):
         credentials_file = os.getenv("CREDENTIALS_FILE")
