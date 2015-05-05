@@ -220,9 +220,22 @@ class ViolaJonesCascadeTrainer:
                                 os.path.join("bin", "opencv_traincascade"))
 
         completionFlag = False
-        trainingParams = ["Num Stages", "minHitRate", "maxFalseAlarmRate",
-                          "Num Pos", "Num Neg", "featureType",
-                          "precalcValBufSize", "precalcldxBufSize"]
+        trainingParams = ["Num Stages", "Num Pos", "Num Neg",
+                          "minHitRate", "maxFalseAlarmRate",
+                          "featureType", "width", "height"]
+
+        paramCombs = itertools.product(self.params["Num Stages"],
+                                       self.params["Num Pos"],
+                                       self.params["Num Neg"],
+                                       self.params["minHitRate"],
+                                       self.params["maxFalseAlarmRate"],
+                                       self.params["featureType"],
+                                       self.params["precalcValBufSize"],
+                                       self.params["precalcldxBufSize"])
+        opts = ["-numStages", "-numPos", "-numNeg",
+                "-minHitRate", "-maxFalseAlarmRate", "-featureType",
+                "-precalcValBufSize", "-precalcIdxBufSize"]
+
         # Check all subfolders of the dataset path.
         for entry in os.listdir(self.dataSetFolder):
             # Check if the current value of the iterator is a path.
@@ -235,21 +248,8 @@ class ViolaJonesCascadeTrainer:
             if len(vecFiles) <= 0:
                 continue
 
-            paramCombs = itertools.product(self.params["Num Stages"],
-                                           self.params["minHitRate"],
-                                           self.params["maxFalseAlarmRate"],
-                                           self.params["Num Pos"],
-                                           self.params["Num Neg"],
-                                           self.params["featureType"],
-                                           self.params["precalcValBufSize"],
-                                           self.params["precalcldxBufSize"])
-            opts = ["-numStages", "-minHitRate", "-maxFalseAlarmRate",
-                    "-numPos", "-numNeg", "-featureType",
-                    "-precalcValBufSize", "-precalcIdxBufSize"]
-
             # Create all possible classifier options.
             for combination in paramCombs:
-
                 trainerArgs = []
                 parameters = []
                 for x, y in zip(opts, combination):
@@ -323,6 +323,7 @@ class ViolaJonesCascadeTrainer:
                                    ["-bg"] +
                                    ["negatives.txt"] +
                                    cascadeArgs + sizeArgs)
+                    print cascadeArgs
                     trainResult = subprocess.call(cascadeArgs)
                 paramsPath = os.path.join(newCascadeDest, "params.txt")
                 with open(paramsPath, "w") as paramFile:
@@ -340,7 +341,12 @@ class ViolaJonesCascadeTrainer:
                     result = "Success"
                 else:
                     result = "Failure"
-                results = dict(zip(trainingParams, combination))
+                results = itertools.izip_longest(trainingParams,
+                                                 tuple(combination[0:6]) +
+                                                 (imgSize["width"],
+                                                 imgSize["height"]))
+
+                results = dict(results)
                 results.update({"Training Result": result})
                 results.update({"Dataset Used": entry})
                 self.postman.send_mail(self.params["MailDestination"], results)
@@ -570,10 +576,6 @@ class ViolaJonesCascadeTrainer:
             negativeCollection.append({"training": trainingSet,
                                       "test": testSet})
 
-        # dataSetCombs = itertools.product(positiveCollection["training"],
-                                         # negativeCollection["training"],
-                                         # self.params["width"],
-                                         # self.params["height"])
         dataSetCombs = itertools.product(positiveCollection,
                                          negativeCollection,
                                          self.params["width"],
@@ -825,8 +827,9 @@ class ViolaJonesCascadeTrainer:
             config = open("config.txt", "w")
             # Get from the user the e-mail where training notifications will
             # be sent.
-            input = raw_input("Please an email address (or more) to notify" +
-                              " you when the training procedure completes: ")
+            input = raw_input("Please enter an email address (or more) to" +
+                              " notify" + " you when the training procedure" +
+                              " completes: ")
 
             # Write it to the configuration file.
             utils.writeCSV(config, "MailDestination", input)
