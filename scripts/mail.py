@@ -3,7 +3,7 @@
 import smtplib
 import os
 import yaml
-import utils
+import utilities as utils
 from email.mime.text import MIMEText
 
 
