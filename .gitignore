@@ -2,6 +2,10 @@
 *.xml
 .*.swp
 *.pyc
+
+*.png
+*.jpg
+
 config.txt
 negatives.txt
 annotations.txt
