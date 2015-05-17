@@ -326,8 +326,6 @@ class ViolaJonesCascadeTrainer(interface.TrainerWrapper):
                 # Get the name of the image.
                 imgPath = tokens[0].strip(" \n")
                 # Get the annotated bounding box.
-                trueRec = (tokens[2], tokens[3], tokens[4], tokens[5])
-                trueRec = utils.Rectangle(trueRec)
                 if not os.path.isfile(imgPath):
                     continue
                 img = cv2.imread(imgPath)
@@ -346,6 +344,8 @@ class ViolaJonesCascadeTrainer(interface.TrainerWrapper):
 
                 # If the image is a positive sample:
                 if int(tokens[1]) > 0:
+                    trueRec = (tokens[2], tokens[3], tokens[4], tokens[5])
+                    trueRec = utils.Rectangle(trueRec)
                     # If any patterns were detected in the current image:
                     if len(rects) > 0:
                         for rect in rects:
